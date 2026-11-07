@@ -1,0 +1,11 @@
+{
+  "include-component-in-tag": false,
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "changelog-path": "CHANGELOG.md",
+      "version-file": "VERSION.txt",
+      "initial-version": "1.0.0"
+    }
+  }
+}

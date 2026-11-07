@@ -1,0 +1,27 @@
+{
+  "jobs":
+    {
+      "build":
+        {
+          "runs-on": "ubuntu-latest",
+          "steps":
+            [
+              { "uses": "actions/checkout@v4", "with": { "fetch-depth": 0 } },
+              {
+                "uses": "googleapis/release-please-action@v4",
+                "with":
+                  {
+                    "command": "manifest",
+                    "config-file": ".release-please-config.json",
+                    "default-branch": "main",
+                    "manifest-file": ".release-please-manifest.json",
+                    "token": "${{ secrets.RELEASE_PLEASE_TOKEN }}",
+                  },
+              },
+            ],
+        },
+    },
+  "name": "release",
+  "on": { "push": { "branches": ["main"] } },
+  "permissions": { "contents": "write", "pull-requests": "write" },
+}
