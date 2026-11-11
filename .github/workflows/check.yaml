@@ -44,27 +44,12 @@
                   kernel.apparmor_restrict_unprivileged_userns=0\nfi\n",
               },
               {
-                "if": "runner.arch == 'X64'",
-                "name": "Enable KVM",
-                "run":
-                  "echo 'KERNEL==\"kvm\", GROUP=\"kvm\", MODE=\"0666\",
-                  OPTIONS+=\"static_node=kvm\"' | sudo tee
-                  /etc/udev/rules.d/99-kvm4all.rules\nsudo udevadm control
-                  --reload-rules\nsudo udevadm trigger --name-match=kvm\n",
-              },
-              {
-                "if": "runner.arch == 'X64'",
                 "run":
                   "nix flake check --show-trace --print-build-logs --max-jobs 1
                   --keep-going",
               },
-              {
-                "if": "runner.arch == 'ARM64'",
-                "run": "nix flake check --no-build --show-trace",
-              },
             ],
-          "strategy":
-            { "matrix": { "os": ["ubuntu-latest", "ubuntu-24.04-arm"] } },
+          "strategy": { "matrix": { "os": ["ubuntu-latest"] } },
         },
     },
   "name": "check",

@@ -9,8 +9,9 @@ kept to another drive and back.
 
 <!-- ANCHOR_END: overview -->
 
-The [docs](docs/src/introduction.md) explain the [design](docs/src/design.md)
-and list every [option](docs/src/options.md).
+The [docs](https://haras-unicorn.github.io/stolon/) explain the
+[design](https://haras-unicorn.github.io/stolon/design.html) and list every
+[option](https://haras-unicorn.github.io/stolon/options.html).
 
 <!-- ANCHOR: guides -->
 

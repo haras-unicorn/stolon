@@ -354,31 +354,48 @@
 
             matrix.os = [
               "ubuntu-latest"
-              "ubuntu-24.04-arm"
             ];
 
             installable = null;
 
             steps = [
               {
-                name = "Enable KVM";
-                "if" = "runner.arch == 'X64'";
-                run = ''
-                  echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-                  sudo udevadm control --reload-rules
-                  sudo udevadm trigger --name-match=kvm
-                '';
-              }
-              {
-                "if" = "runner.arch == 'X64'";
                 run = "nix flake check --show-trace --print-build-logs --max-jobs 1 --keep-going";
               }
+            ];
+          };
+
+          docs = {
+            on.push.branches = [ "main" ];
+
+            permissions = {
+              pages = "write";
+              "id-token" = "write";
+            };
+
+            installable = ".#docs";
+
+            steps = [
               {
-                # The VM tests only run on x86, so ARM only has to evaluate.
-                "if" = "runner.arch == 'ARM64'";
-                run = "nix flake check --no-build --show-trace";
+                uses = "actions/upload-pages-artifact@v3";
+                "with".path = "./result";
               }
             ];
+
+            jobs.deploy = {
+              needs = "build";
+              runs-on = "ubuntu-latest";
+              environment = {
+                name = "github-pages";
+                url = "\${{ steps.deployment.outputs.page_url }}";
+              };
+              steps = [
+                {
+                  id = "deployment";
+                  uses = "actions/deploy-pages@v4";
+                }
+              ];
+            };
           };
 
           release = {

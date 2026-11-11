@@ -30,6 +30,10 @@ and haraspkgs builds `nixosModules.default` from the rest.
   `self.nixosTests`.
 - `src/nix/dev/shell.nix` is the dev shell, `src/nix/systems.nix` the supported
   systems.
+- `docs/` is the mdbook. Its introduction includes parts of the `README.md`, and
+  `docs/src/options.md` is generated from the options by the dev shell, so edit
+  `options.nix` and not the page. `src/nix/overlays/docs.nix` builds the book as
+  the `docs` package, which the docs workflow publishes to GitHub Pages.
 
 ## Development
 
@@ -38,9 +42,9 @@ The dev shell comes from the flake and is loaded by direnv. `dev check` and
 and the tests.
 
 Everything that haraspkgs generates is committed but owned by the dev shell:
-`.gitignore`, `.gitattributes`, `LICENSE.md`, `CODE_OF_CONDUCT.md` and
-`.github/workflows/`. Change `dev/shell.nix` and enter the shell again, not the
-files. The release-please files are written by hand.
+`.gitignore`, `.gitattributes`, `LICENSE.md`, `CODE_OF_CONDUCT.md`,
+`.github/workflows/` and `docs/src/options.md`. Change `dev/shell.nix` and enter
+the shell again, not the files. The release-please files are written by hand.
 
 ## Testing
 
