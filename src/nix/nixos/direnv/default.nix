@@ -1,4 +1,4 @@
-{ selfLib, ... }:
+{ inputs, ... }:
 
 {
   self.nixosModules.direnv = {
@@ -13,14 +13,21 @@
       let
         cfg = config.stolon.gc;
 
-        cleanup = selfLib.nushell.writeApplication pkgs {
+        # NixOS tests do not allow overlays on their machines, so haraspkgs is
+        # applied to the package set here and not through `nixpkgs.overlays`.
+        harasPackages = (pkgs.extend inputs.haraspkgs.overlays.default).harasPackages;
+
+        cleanup = harasPackages.writeNushellApplication {
           name = "stolon-direnv-gcroots";
           runtimeInputs = [
             pkgs.git
             config.nix.package
           ];
-          template = ./cleanup.nu;
-          vars.retentionDays = builtins.toJSON cfg.retentionDays;
+          text = harasPackages.renderMustacheText {
+            name = "stolon-direnv-gcroots";
+            text = builtins.readFile ./cleanup.nu;
+            vars.retentionDays = builtins.toJSON cfg.retentionDays;
+          };
         };
       in
       {

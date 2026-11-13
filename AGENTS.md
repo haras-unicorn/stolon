@@ -12,19 +12,37 @@ and haraspkgs builds `nixosModules.default` from the rest.
 
 - `src/nix/nixos/` registers one `self.nixosModules` entry per file, named after
   the program it configures (for example `grub`, `btrfs`, `restic`). One file,
-  `options`, declares every `stolon.*` option and imports the disko and
-  impermanence modules. The others only read the options, and a single
+  `options`, declares every `stolon.*` option of a machine and imports the disko
+  and impermanence modules. The others only read the options, and a single
   `stolon.enable` turns them all on.
 - `src/nix/lib/layout.nix` registers `self.lib.layout`, with its unit tests: the
   names, what is kept, who owns it and the `disko.devices` that the modules, the
   backup tools and the tests must agree on. Derived values and any logic worth a
   test live here as functions and not as internal options or in the modules.
-  `nushell.nix` registers `self.lib.nushell`, which writes the scripts.
+- `src/nix/lib/installer.nix` registers `self.lib.installer`: the summary the
+  installer keeps of each machine, what an offline installer carries of its
+  machine, and the NixOS module of the installer image, which the image and the
+  installer test share. That module declares its own `stolon.installer.package`,
+  so machines do not carry it.
+- Anything that takes a package set is an overlay in `src/nix/overlays/`, under
+  the `stolonPackages` namespace, and not a `self.lib` function. haraspkgs puts
+  them on the `pkgs` of the flake and the dev shell, and NixOS modules apply the
+  one they need with `pkgs.extend`. `installer` (exported) gives `makeInstaller`
+  and the `testInstaller` and `testImage` packages, and `docs` the book. The dev
+  shell renders the options page with the haraspkgs `mkOptionsDocs`.
 - Scripts are nushell, written with the haraspkgs `writeNushellApplication`. A
   long one is a mustache template next to its module, in a folder named after
-  the module, and `self.lib.nushell` renders it. The exceptions are code that
-  other tools paste into their own bash scripts or run in the initrd, each with
-  a comment that says why. Test scripts are Python.
+  the module, rendered with the haraspkgs `renderMustacheText`. The exceptions
+  are code that other tools paste into their own bash scripts or run in the
+  initrd, each with a comment that says why. Test scripts are Python.
+- `src/nix/overlays/installer/` is the installer: one Nushell script that is a
+  command line with subcommands and, without them, a gum menu that only asks and
+  calls those subcommands, so all the logic is in what the tests run. Its TUI,
+  CLI and EXT sections hold the menu, the commands with their logic, and
+  everything that touches the computer. `STOLON_INSTALLER_DRY_RUN` and
+  `STOLON_INSTALLER_FAKE` skip or fake what is in EXT, and `testInstaller` fakes
+  by default, with the machines of `self.lib.installer.fakes`. `testImage` is
+  the image with `testInstaller`.
 - `src/nix/tests/` holds the integration tests, which are NixOS VM tests. Boot
   tests go through the disko test library. Everything else goes through
   `self.nixosTests`.
@@ -54,6 +72,14 @@ passes the module to `runNixOSTest` untouched, so `nodes` and QEMU disks work.
 
 The boot tests run on x86 only, since disko's boot tests hang on aarch64. CI
 runs everything on x86 and only evaluates on ARM.
+
+The installer test boots the image's module and gives the virtual machine a
+small flake that points at this one, with every flake source, the built machine
+and what renders the mustache templates in its store, so the installer evaluates
+and installs the machine offline. The machine is
+`self.lib.tests.installerMachine`, so the host and the virtual machine build the
+same system. The offline installer test boots the same module with the offline
+installer of that machine, and without a network, substituters or flake sources.
 
 ## Releases
 

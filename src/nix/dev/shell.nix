@@ -1,4 +1,4 @@
-{ selfLib, ... }:
+{ selfLib, inputs, ... }:
 
 {
   self.devShells.default = {
@@ -106,7 +106,66 @@
             "passwd"
             "sdb"
             "zfs"
+            "autologin"
+            "btop"
+            "ddrescue"
+            "dmidecode"
+            "dnsutils"
+            "dosfstools"
+            "efibootmgr"
+            "ethtool"
+            "exfatprogs"
+            "facter"
+            "getty"
+            "gptfdisk"
+            "hdparm"
+            "inxi"
+            "lsblk"
+            "lshw"
+            "memtester"
+            "networkmanager"
+            "nmtui"
+            "ntfs"
+            "pciutils"
+            "pkname"
+            "rfkill"
+            "mmcblk"
+            "binfmt"
+            "tmpfs"
+            "preselect"
+            "progs"
+            "smartctl"
+            "smartmontools"
+            "squashfs"
+            "supplicant"
+            "testdisk"
+            "tmux"
+            "tran"
+            "usbutils"
+            "toplevel"
+            "substituters"
           ];
+        };
+
+        harasPackages = (pkgs.extend inputs.haraspkgs.overlays.default).harasPackages;
+
+        # The module also pulls in the disko and impermanence modules, which
+        # are documented by their own projects, so only the options under
+        # `stolon` are kept. They set NixOS options that a bare module
+        # evaluation does not declare, so that check is off.
+        optionsDocs = harasPackages.mkOptionsDocs {
+          modules = [
+            { _module.check = false; }
+            selfLib.nixosModules.options
+          ];
+          specialArgs = { inherit pkgs; };
+          transformOptions =
+            option:
+            option
+            // {
+              visible = option.visible && builtins.head option.loc == "stolon";
+              declarations = [ ];
+            };
         };
 
         markdownlintConfig = json.generate "markdownlint.json" {
@@ -234,7 +293,7 @@
           <!-- markdownlint-disable MD013 -->
 
         ''
-        + builtins.readFile (selfLib.docs.options pkgs);
+        + builtins.readFile optionsDocs.optionsCommonMark;
 
         direnv = {
           enable = true;

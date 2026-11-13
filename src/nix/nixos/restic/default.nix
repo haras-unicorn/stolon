@@ -1,4 +1,4 @@
-{ selfLib, ... }:
+{ inputs, selfLib, ... }:
 
 {
   self.nixosModules.restic = {
@@ -14,6 +14,10 @@
         cfg = config.stolon;
 
         layout = selfLib.layout;
+
+        # NixOS tests do not allow overlays on their machines, so haraspkgs is
+        # applied to the package set here and not through `nixpkgs.overlays`.
+        harasPackages = (pkgs.extend inputs.haraspkgs.overlays.default).harasPackages;
 
         partitions = config.disko.devices.disk.${layout.names.disk}.content.partitions;
 
@@ -31,11 +35,12 @@
             "${partitions.root.label}:${if cfg.encryption.enable then "crypto_LUKS" else "btrfs"}"
           ];
           volumes = builtins.toJSON (builtins.attrNames (layout.volumes cfg.keep));
+          migration = builtins.toJSON (layout.migration cfg.keep);
         };
 
         mkProgram =
           { program, direction }:
-          selfLib.nushell.writeApplication pkgs {
+          harasPackages.writeNushellApplication {
             name = program;
             runtimeInputs = [
               pkgs.coreutils
@@ -43,9 +48,12 @@
               pkgs.restic
               pkgs.util-linux
             ];
-            template = ./transfer.nu;
-            vars = vars // {
-              inherit program direction;
+            text = harasPackages.renderMustacheText {
+              name = program;
+              text = builtins.readFile ./transfer.nu;
+              vars = vars // {
+                inherit program direction;
+              };
             };
           };
 
@@ -58,15 +66,22 @@
           program = "stolon-restore";
           direction = "restore";
         };
+
+        migrate = mkProgram {
+          program = "stolon-migrate";
+          direction = "migrate";
+        };
       in
       {
         config = lib.mkIf cfg.enable {
           system.build.stolonBackup = backup;
           system.build.stolonRestore = restore;
+          system.build.stolonMigrate = migrate;
 
           environment.systemPackages = [
             backup
             restore
+            migrate
           ];
         };
       };
