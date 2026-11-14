@@ -1,0 +1,3 @@
+{
+  self.overlays.namespace = "stolonPackages";
+}

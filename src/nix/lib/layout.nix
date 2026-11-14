@@ -8,7 +8,8 @@ let
   # These names are the contract between a formatted drive and the backup
   # tools, which use them to check that a drive has the expected layout. The
   # backup mount is part of it because restic stores absolute paths, and a
-  # restore writes them back to the same place.
+  # restore writes them back to the same place. Everything the tools put on an
+  # external drive goes under one `stolon` folder.
   names = {
     disk = "main";
     espLabel = "stolon-esp";
@@ -19,7 +20,8 @@ let
     persist = "@persist";
     persistMount = "/persist";
     backupMount = "/run/stolon";
-    backupRepository = "stolon";
+    backupRepository = "stolon/backups";
+    hardwareReports = "stolon/hardware";
   };
 
   essentials = {
@@ -60,6 +62,25 @@ let
         }
       ) wanted.directories
     );
+
+  # Where a migration puts each kept path of an old system, from the top of
+  # the btrfs filesystem: a kept directory becomes its own volume, and a kept
+  # file goes into the persist volume, like on a Stolon disk.
+  migration =
+    keep:
+    let
+      wanted = kept keep;
+    in
+    builtins.map (path: {
+      source = path;
+      destination = volumeName path;
+      type = "dir";
+    }) wanted.directories
+    ++ builtins.map (path: {
+      source = path;
+      destination = "${names.persist}${path}";
+      type = "file";
+    }) wanted.files;
 
   # Two kept directories can end up with the same volume name, for example
   # `/var/lib/a-b` and `/var/lib/a/b`.
@@ -257,6 +278,7 @@ in
       kept
       volumeName
       volumes
+      migration
       volumesCollide
       homes
       owner
@@ -358,6 +380,46 @@ in
         true
         true
         false
+      ];
+    };
+
+    migration-puts-directories-in-their-volumes-and-files-in-persist = {
+      expr = migration nothing;
+      expected = [
+        {
+          source = "/var/lib/nixos";
+          destination = "@persist-var-lib-nixos";
+          type = "dir";
+        }
+        {
+          source = "/var/log";
+          destination = "@persist-var-log";
+          type = "dir";
+        }
+        {
+          source = "/etc/machine-id";
+          destination = "@persist/etc/machine-id";
+          type = "file";
+        }
+      ];
+    };
+
+    migration-takes-databases-and-vms-like-directories = {
+      expr = builtins.map (entry: entry.destination) (
+        migration (
+          nothing
+          // {
+            databases = [ "/var/lib/db" ];
+            vms = [ "/var/lib/vm" ];
+          }
+        )
+      );
+      expected = [
+        "@persist-var-lib-nixos"
+        "@persist-var-log"
+        "@persist-var-lib-db"
+        "@persist-var-lib-vm"
+        "@persist/etc/machine-id"
       ];
     };
 
