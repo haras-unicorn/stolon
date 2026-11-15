@@ -9,9 +9,11 @@ system starts from a clean slate on every boot and only keeps what is listed
 under `stolon.keep`, old Nix garbage is collected daily, and `stolon-backup` and
 `stolon-restore` are installed to move what is kept to another drive\.
 
-The disk is set up with the `disko` scripts in `config.system.build`\. Decide
-what to keep before that, because every kept directory gets its own place on the
-disk when it is set up\.
+The disk is set up with the `disko` scripts in `config.system.build`\. Every
+kept directory gets its own place on the disk, and a change to what is kept
+happens at the next boot, so apply it with `nixos-rebuild boot` and a restart\.
+Turning this off on an installed machine is refused, since it would not start\.
+Install it again instead\.
 
 _Type:_ boolean
 
@@ -77,7 +79,8 @@ _Default:_
 
 The disk to put the system on\. Everything on it is erased when it is set up\.
 Use a path from `/dev/disk/by-id`, because it does not change when disks are
-plugged in a different order\.
+plugged in a different order\. On an installed machine, it can only change to
+the disk the system runs from\.
 
 _Type:_ string
 
@@ -90,7 +93,8 @@ _Example:_
 ## stolon\.encryption\.enable
 
 Encrypt the disk, so nobody can read it without the passphrase\. Turn this off
-only if encryption makes your disk too slow\.
+only if encryption makes your disk too slow\. It cannot change on an installed
+machine, since it would not start, so install it again instead\.
 
 _Type:_ boolean
 
@@ -160,7 +164,9 @@ _Default:_
 
 Folders of databases\. They are kept like `stolon.keep.directories`, and are
 also set up so that they do not slow down as the many small writes of a database
-fragment them\. The price is that the files in them are not compressed\.
+fragment them\. The price is that the files in them are not compressed\. A
+folder that is already kept as a normal folder cannot move here, and a new one
+has to be empty, since moving data into it would copy all of it\.
 
 _Type:_ list of absolute path without a trailing slash
 
@@ -232,7 +238,8 @@ _Example:_
 Folders of virtual machine disks\. They are kept like `stolon.keep.directories`,
 and are also set up so that they do not slow down as the many small writes of a
 virtual machine fragment them\. The price is that the files in them are not
-compressed\.
+compressed\. A folder that is already kept as a normal folder cannot move here,
+and a new one has to be empty, since moving data into it would copy all of it\.
 
 _Type:_ list of absolute path without a trailing slash
 

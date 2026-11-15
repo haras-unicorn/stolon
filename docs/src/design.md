@@ -42,6 +42,37 @@ runs in the initrd before the system starts. What you want to keep is listed in
 belong. Because the folders are separate subvolumes, they can be backed up one
 by one, and databases and virtual machines can be set up without copy-on-write.
 
+What is kept changes only at boot. A switch would unmount and mount kept folders
+under programs that may be using them, so a pre-switch check refuses it and asks
+for a boot. Each system records what it keeps and how its disk is set up in
+`/etc/stolon/system.json` for that check. Three rules hold:
+
+- **What is missing is made at boot.** A script in the initrd runs before the
+  root is wiped. It makes the subvolume of each newly kept folder and copies in
+  what was at its path, from the old root and from the folder that held it, with
+  reflinks that share the data. A newly kept file is copied from the old root
+  the same way. Each subvolume is built in a staging folder and renamed into
+  place once it is whole, so a boot that stops halfway leaves nothing that looks
+  finished, and the root is only wiped once all of it worked.
+- **Nothing is deleted.** Neither the subvolume of a folder that is no longer
+  kept nor the copy a folder leaves behind when it gets its own subvolume: a
+  folder dropped from the configuration by mistake would take its data along,
+  and a generation you roll back to may still need it. `stolon-stale` lists what
+  the running system neither mounts nor binds, and deletes it on request.
+- **The check refuses what would copy, delete or bring back data at boot,**
+  while the user can still decide. A reflink cannot share data between a
+  copy-on-write folder and one without, so such a copy would write all of it at
+  boot, with no way to know beforehand whether it fits. Old data that shows up
+  over what is there now is as surprising as data that disappears. The check
+  compares the new system and its specialisations with the running one, and the
+  specialisations with each other, since the boot menu starts any of them
+  without a check.
+
+Turning Stolon off and turning encryption on or off are always refused, because
+the system would look for its root where it is not. `stolon.device` may only
+change to the disk the system runs from, since the installer erases the disk it
+names.
+
 ### Restic
 
 Each NixOS configuration gets a `stolon-backup` and a `stolon-restore` command,

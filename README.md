@@ -2,12 +2,9 @@
 
 <!-- ANCHOR: overview -->
 
-NixOS modules that put a whole system on one disk. The disk is encrypted and
-compressed, the system starts from a clean slate on every boot and keeps only
-what you list, old Nix garbage is collected daily, and two commands move what is
-kept to another drive and back. A third backs up a system that does not use
-Stolon yet, so it can move onto it. An installer on a USB stick installs, backs
-up and restores the machines of your flake.
+NixOS modules that put a whole system on one encrypted disk, which starts clean
+on every boot and keeps only what you list. An installer on a USB stick
+installs, backs up and restores the machines of your flake.
 
 <!-- ANCHOR_END: overview -->
 
@@ -47,6 +44,57 @@ Add the flake as an input and import its module in a NixOS configuration:
 Everything outside of `stolon.keep` is thrown away on every boot. That includes
 passwords set with `passwd`, so give every user a `hashedPassword` (made with
 `mkpasswd`) in the configuration.
+
+### What is kept
+
+Every kept folder gets its own subvolume. Folders in `stolon.keep.databases` and
+`stolon.keep.vms` skip copy-on-write, so the many small writes of a database or
+a virtual machine do not fragment them. Give them a few fixed folders from the
+start, like `/var/lib/vms`, and point them there, because a kept folder cannot
+change between the two kinds later.
+
+To change what is kept, run `nixos-rebuild boot` and restart. That is all you
+need to do. `nixos-rebuild switch` refuses it, because what is kept is mounted
+when the system starts, and programs may be using it. At the restart, a newly
+kept folder gets its subvolume with what was at its path, and a newly kept file
+is kept as it was.
+
+Three rules keep this safe:
+
+1. **What is missing is made at boot.**
+2. **Nothing is deleted for you.** What is no longer kept stays on the disk, and
+   so does the old copy a folder leaves behind when it gets its own subvolume. A
+   generation you roll back to may still need them. `stolon-stale list` shows
+   them, `stolon-stale delete` deletes them, and `stolon-stale` alone asks
+   which.
+3. **What would copy, delete or bring back data at boot is refused** before the
+   restart, with what to do instead:
+   - a path that changes between a file and a folder, or between a normal folder
+     and one for databases or virtual machines
+   - a newly kept folder of the other kind than the folder it sits in, while
+     something is in it, since the boot would have to copy all of it
+   - an old subvolume, or an old copy in `/persist`, that would come back over
+     what is there now
+   - a folder that is no longer kept while a kept folder above it still is,
+     unless it and the old copy under it are empty, since what is in it would
+     disappear from there
+   - a folder that is newly kept while the kept folder above it stops being
+     kept, in the same boot
+   - something of the other kind in the way of a newly kept path
+   - specialisations that keep a path in different ways
+
+A few settings cannot change on an installed machine, because it would not start
+again: turning Stolon off, and `stolon.encryption.enable`. Install the machine
+again instead. `stolon.device` can only change to the disk the system runs from,
+since an install erases that disk, and `stolon.bootSize` only matters to the
+next install. Specialisations are entries in the boot menu of the same system,
+so they share its disk and its encryption, and keep their paths the same way. A
+second disk is a second machine.
+
+After an update to this version of Stolon, every switch is refused until you
+have booted into it once, because the running system does not record what it
+keeps. `NIXOS_NO_CHECK=1` skips all of these checks, and so does picking another
+generation in the boot menu.
 
 ### Installer
 

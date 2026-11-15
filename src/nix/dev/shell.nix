@@ -144,6 +144,15 @@
             "usbutils"
             "toplevel"
             "substituters"
+            "specialisation"
+            "specialisations"
+            "reflinks"
+            "reflink"
+            "foldl"
+            "realpath"
+            "unheld"
+            "filesize"
+            "shlex"
           ];
         };
 
