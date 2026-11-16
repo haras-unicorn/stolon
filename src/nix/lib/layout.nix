@@ -9,7 +9,9 @@ let
   # tools, which use them to check that a drive has the expected layout. The
   # backup mount is part of it because restic stores absolute paths, and a
   # restore writes them back to the same place. Everything the tools put on an
-  # external drive goes under one `stolon` folder.
+  # external drive goes under one `stolon` folder. The initrd makes the volumes
+  # of newly kept folders in `staging` first, a folder that no volume name can
+  # collide with, since those never hold a `/`.
   names = {
     disk = "main";
     espLabel = "stolon-esp";
@@ -18,6 +20,7 @@ let
     root = "@root";
     nix = "@nix";
     persist = "@persist";
+    staging = "@staging";
     persistMount = "/persist";
     backupMount = "/run/stolon";
     backupRepository = "stolon/backups";
@@ -81,6 +84,73 @@ let
       destination = "${names.persist}${path}";
       type = "file";
     }) wanted.files;
+
+  # Where a kept path sits at the top of the btrfs filesystem: in the volume
+  # of the deepest kept directory above it, or in the persist volume.
+  placement =
+    wanted: path:
+    let
+      above = builtins.filter (other: lib.hasPrefix "${other}/" path) wanted.directories;
+
+      holder = lib.foldl' (
+        deepest: other:
+        if builtins.stringLength other > builtins.stringLength deepest then other else deepest
+      ) "" above;
+    in
+    {
+      holder = if holder == "" then names.persist else volumeName holder;
+      within = lib.removePrefix "/" (lib.removePrefix holder path);
+    };
+
+  # How the initrd makes the volume of each kept directory that does not have
+  # one yet, from what was at its path until then. A volume comes after the one
+  # that holds it, so that one is made first.
+  creation =
+    keep:
+    let
+      wanted = kept keep;
+
+      shallowFirst = builtins.sort (
+        left: right: builtins.stringLength left < builtins.stringLength right
+      ) wanted.directories;
+    in
+    builtins.map (
+      path:
+      placement wanted path
+      // {
+        name = volumeName path;
+        noCow = builtins.elem path wanted.noCowDirectories;
+      }
+    ) shallowFirst;
+
+  # Where the initrd puts each kept file that is not there yet, from the root.
+  fileCreation =
+    keep:
+    let
+      wanted = kept keep;
+    in
+    builtins.map (path: placement wanted path // { inherit path; }) wanted.files;
+
+  # What a system records of what it keeps and of its disk, so that a switch
+  # can compare it with the system it replaces.
+  record =
+    {
+      keep,
+      device,
+      bootSize,
+      encryption,
+    }:
+    let
+      wanted = kept keep;
+    in
+    wanted
+    // {
+      volumes = builtins.map (path: {
+        inherit path;
+        name = volumeName path;
+      }) wanted.directories;
+      inherit device bootSize encryption;
+    };
 
   # Two kept directories can end up with the same volume name, for example
   # `/var/lib/a-b` and `/var/lib/a/b`.
@@ -279,6 +349,9 @@ in
       volumeName
       volumes
       migration
+      creation
+      fileCreation
+      record
       volumesCollide
       homes
       owner
@@ -421,6 +494,129 @@ in
         "@persist-var-lib-vm"
         "@persist/etc/machine-id"
       ];
+    };
+
+    creation-makes-the-system-volumes-from-persist = {
+      expr = creation nothing;
+      expected = [
+        {
+          name = "@persist-var-log";
+          holder = "@persist";
+          within = "var/log";
+          noCow = false;
+        }
+        {
+          name = "@persist-var-lib-nixos";
+          holder = "@persist";
+          within = "var/lib/nixos";
+          noCow = false;
+        }
+      ];
+    };
+
+    creation-takes-a-nested-directory-from-the-deepest-one-above-it = {
+      expr = builtins.filter (volume: lib.hasPrefix "@persist-home" volume.name) (
+        creation (
+          nothing
+          // {
+            directories = [
+              "/home/alice/Documents/old/new"
+              "/home/alice"
+              "/home/alice/Documents"
+            ];
+          }
+        )
+      );
+      expected = [
+        {
+          name = "@persist-home-alice";
+          holder = "@persist";
+          within = "home/alice";
+          noCow = false;
+        }
+        {
+          name = "@persist-home-alice-Documents";
+          holder = "@persist-home-alice";
+          within = "Documents";
+          noCow = false;
+        }
+        {
+          name = "@persist-home-alice-Documents-old-new";
+          holder = "@persist-home-alice-Documents";
+          within = "old/new";
+          noCow = false;
+        }
+      ];
+    };
+
+    creation-marks-databases-and-vms-as-no-cow = {
+      expr = builtins.map (volume: volume.noCow) (
+        creation (
+          nothing
+          // {
+            databases = [ "/var/lib/db" ];
+            vms = [ "/var/lib/vm" ];
+          }
+        )
+      );
+      expected = [
+        false
+        true
+        true
+        false
+      ];
+    };
+
+    file-creation-puts-files-in-the-deepest-directory-above-them = {
+      expr = fileCreation (
+        nothing
+        // {
+          directories = [ "/home/alice" ];
+          files = [ "/home/alice/.history" ];
+        }
+      );
+      expected = [
+        {
+          path = "/etc/machine-id";
+          holder = "@persist";
+          within = "etc/machine-id";
+        }
+        {
+          path = "/home/alice/.history";
+          holder = "@persist-home-alice";
+          within = ".history";
+        }
+      ];
+    };
+
+    record-has-what-is-kept-its-volumes-and-the-disk = {
+      expr = record {
+        keep = nothing;
+        device = "/dev/vda";
+        bootSize = "1G";
+        encryption = true;
+      };
+      expected = {
+        directories = [
+          "/var/lib/nixos"
+          "/var/log"
+        ];
+        files = [ "/etc/machine-id" ];
+        noCowDirectories = [ ];
+        volumes = [
+          {
+            path = "/var/lib/nixos";
+            name = "@persist-var-lib-nixos";
+          }
+          {
+            path = "/var/log";
+            name = "@persist-var-log";
+          }
+        ];
+        device = "/dev/vda";
+        bootSize = "1G";
+        encryption = true;
+      };
     };
 
     volumes-collide-when-two-directories-share-a-name = {

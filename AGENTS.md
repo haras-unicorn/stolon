@@ -34,7 +34,9 @@ and haraspkgs builds `nixosModules.default` from the rest.
   long one is a mustache template next to its module, in a folder named after
   the module, rendered with the haraspkgs `renderMustacheText`. The exceptions
   are code that other tools paste into their own bash scripts or run in the
-  initrd, each with a comment that says why. Test scripts are Python.
+  initrd, each with a comment that says why. Programs of one module that share
+  helpers `use` them as a Nushell module next to them, as in `nixos/kept/`. Test
+  scripts are Python.
 - `src/nix/overlays/installer/` is the installer: one Nushell script that is a
   command line with subcommands and, without them, a gum menu that only asks and
   calls those subcommands, so all the logic is in what the tests run. Its TUI,
@@ -71,7 +73,12 @@ any other way. `haraspkgs` calls `self.nixosTests` container tests, but it
 passes the module to `runNixOSTest` untouched, so `nodes` and QEMU disks work.
 
 The boot tests run on x86 only, since disko's boot tests hang on aarch64. CI
-runs everything on x86 and only evaluates on ARM.
+runs everything on x86 and only evaluates on ARM. The boot test that changes
+what is kept does it with specialisations, which force their own disko devices
+over the ones the disko test library forces, and boots into them with
+`switch-to-configuration boot`. The refusals of the switch check that need no
+boot run it against made-up systems, folders that hold nothing but the record of
+what they keep.
 
 The installer test boots the image's module and gives the virtual machine a
 small flake that points at this one, with every flake source, the built machine
